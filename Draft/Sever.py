@@ -10,14 +10,22 @@ print("socket binded to %s" % (port))
 
 s.listen(5)
 print("socket is listening...")
-
 while True:
-    c, addr = s.accept() #luu dia chi cua client ket noi voi sever
-    print('Got connection from ',addr)
+    c, addr = s.accept()  # luu dia chi cua client ket noi voi sever
+    try:
 
-    data = input('Enter Message: ')
-    #c.send('Sever: %s' %(str).encode())
-    c.sendall(bytes(data, "utf8"))
-    c.close()
+        print('Got connection from ', addr)
+        while True:
 
-    break
+            data = input('Enter Message: ')
+            # c.send('Sever: %s' %(str).encode())
+            c.sendall(bytes(data, "utf8"))
+
+            if data == "quit":
+                break
+
+            strr = c.recv(1024)
+            print("Client: ", strr.decode("utf8"))
+
+    finally:
+        c.close()

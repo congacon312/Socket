@@ -1,23 +1,40 @@
 import socket
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-port = 12345
+HOST = "127.0.0.1"
+PORT = 1234
+FORMART = "utf8"
 
-s.connect(('127.0.0.1', port))
-print("Client is conecting")
+print("CLIENT SIDE")
+client  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+def sendList(list, client):
+    for item in list:
+        client.sendall(item.encode(FORMART))
+        #reponse
+        client.recv(1024)
+
+    client.sendall("end".encode(FORMART))
 
 try:
-    while True:
+    client.connect((HOST, PORT))
 
-        data = s.recv(1024)
+    print("client: ", client.getsockname())
 
-        print("Sever: ", data.decode("utf8"))
+    mgs = None
 
-        if data == "quit":
-            break
+    while mgs != "Exit":
+        mgs = input("Message: ")
+        client.sendall(mgs.encode(FORMART))
 
-        strr = input("Client: ")
-        s.sendall(bytes(strr, "utf8"))
-finally:
-    s.close()
+        list = ["baby", "pro", "player"]
+
+        if (mgs == "list"):
+            #wait reponse
+            client.recv(1024)
+            sendList(list, client)
+
+except:
+    print("Do not connect to Sever")
+
+client.close()

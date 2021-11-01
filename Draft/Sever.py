@@ -1,31 +1,66 @@
 import socket
 
+HOST = "127.0.0.1"
+PORT = 1234
+FORMART = "utf8"
+
+
+
+def  recvlist(conn):
+
+    item = conn.recv(1024).decode(FORMART)
+
+    list =[]
+
+    list.append(item)
+    conn.sendall(item.encode(FORMART))
+    item = conn.recv(1024).decode(FORMART)
+
+    while(item != "end"):
+        list.append(item)
+
+        conn.sendall(item.encode(FORMART))
+        item = conn.recv(1024).decode(FORMART)
+    
+    return list
+
+
+
+
+#--------------------------------------------main-------------------------------------
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-print("successfully created socket")
-port = 12345
 
-s.bind(('127.0.0.1', port))
+print("SEVER SIDE")
 
-print("socket binded to %s" % (port))
 
-s.listen(5)
-print("socket is listening...")
-while True:
-    c, addr = s.accept()  # luu dia chi cua client ket noi voi sever
-    try:
+s.bind((HOST, PORT))
+s.listen()
+print("Waiting Client")
 
-        print('Got connection from ', addr)
-        while True:
 
-            data = input('Enter Message: ')
-            # c.send('Sever: %s' %(str).encode())
-            c.sendall(bytes(data, "utf8"))
+#-------try except------------------
+try:
+    conn, add = s.accept()
+    print("Client: ", add , " connect")
+    print("connect: ", conn.getsockname())
 
-            if data == "quit":
-                break
+    mgs = None
 
-            strr = c.recv(1024)
-            print("Client: ", strr.decode("utf8"))
+    while mgs != "Exit":
+        mgs = conn.recv(1024).decode(FORMART)
+        print("Sever: ", mgs)
 
-    finally:
-        c.close()
+        if(mgs == "list"):
+            #reponse
+            conn.sendall(mgs.encode(FORMART))
+
+            list = recvlist(conn)
+            print("List: ", list)
+
+
+except:
+    print("Do not connect to Client")
+
+print("End")
+
+conn.close()

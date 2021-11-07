@@ -1,3 +1,4 @@
+from os import name
 import socket
 
 
@@ -5,8 +6,10 @@ HOST = "127.0.0.1"
 PORT = 1234
 FORMART = "utf8"
 
-print("CLIENT SIDE")
-client  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+
+
+#--------------------------------------------declaration func--------------------------------------
 
 def sendList(list, client):
     for item in list:
@@ -16,9 +19,7 @@ def sendList(list, client):
 
     client.sendall("end".encode(FORMART))
 
-try:
-    client.connect((HOST, PORT))
-
+def  handle(client):
     print("client: ", client.getsockname())
 
     mgs = None
@@ -34,6 +35,20 @@ try:
             client.recv(1024)
             sendList(list, client)
 
+def sendName(client: socket.socket, name):
+    client.sendall(name.encode(FORMART))
+
+
+#------------------------------------------------------------main-------------------------
+print("CLIENT SIDE")
+client  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+name = input("Please Enter Name: ")
+
+try:
+    client.connect((HOST, PORT))
+    sendName(client, name)
+    handle(client)
+    
 except:
     print("Do not connect to Sever")
 

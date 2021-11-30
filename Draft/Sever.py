@@ -10,29 +10,41 @@ import MySQL
 from tkinter import filedialog
 # '127.0.0.1'
 # 192.168.1.3
+# 192.168.1.8
 port = 12345
 format = 'utf8'
 
-class HomePage_Server(Frame):  # test chơi chơi
-    def __init__(self, main_frame, windows):
-        Frame.__init__(self, main_frame)
-        self.configure(bg="grey")
-        homepage_label = Label(
-            master=self, text="SERVER")
-        homepage_label.pack()
-        frame1 = Frame(master=self, width=100, height=100, bg="red")
-        logout_button = Button(master=self, text="Logout", width=12, height=1,
-                               bg="blue", fg="white", command=lambda: self.logout_server(windows))
-        logout_button.pack()
-        frame1.pack()
+NO_ACCOUNT = "no-account"
 
-    def logout_server(self,windows):
-        s.close()
-        windows.switchPage(loginServer)
-        return
+Live_Account = []
+id = []
+address = []
+################----------------------------------------------------------------function--------------------------------
+
+
+def Check_LiveAccount(username):
+    for row in Live_Account:
+        parse = row.find("-")
+        parse_check = row[(parse+1):]
+        if parse_check == username:
+            return False
+    return True
+
+
+def Remove_LiveAccount(conn: socket.socket, username):
+    if username != NO_ACCOUNT:
+
+        for row in Live_Account:
+            if row.find(username) != -1:
+                Live_Account.remove(row)
+                id.remove(username)
+                address.remove(conn.getsockname())
+
 
 def client_side(conn, check_dis):
     while (True):
+        username = None
+
         try:
             command = conn.recv(1024).decode(format)
             conn.sendall(command.encode(format))
@@ -40,19 +52,20 @@ def client_side(conn, check_dis):
             pass
         finally:
             if (command == "LOGIN"):
-                check_login_client(conn)
+                username = check_login_client(conn)
             elif(command == "REGISTER"):
                 create_account(conn)
                 return
             elif(command == "DISCONNECT"):
-                check=disconnect_client(conn)
-                if (check==True):
-                    check_dis=True
+                check = disconnect_client(conn, username)
+                if (check == True):
+                    check_dis = True
                     break
             elif (command == 'DATA'):
                 send_data_to_client(conn)
-                pass            
+                pass
     return check
+
 
 def send_data_to_client(conn):
 
@@ -60,34 +73,37 @@ def send_data_to_client(conn):
     conn.sendall(filename.encode(format))
 
     data = MySQL.take_data_from_json(filename)
-    
-    if (data==False):
+
+    if (data == False):
         conn.sendall("Fail".encode(format))
         conn.recv(1024).decode(format)
         return
     else:
         conn.sendall("Success".encode(format))
         conn.recv(1024).decode(format)
-        
-    data=data['results']
+
+    data = data['results']
     for item in data:
         conn.sendall(json.dumps(item).encode(format))
         conn.recv(1024).decode(format)
-        
+
     conn.sendall("done".encode(format))
     conn.recv(1024).decode(format)
     pass
 
-def disconnect_client(conn):
+
+def disconnect_client(conn, username):
     try:
         conn.sendall("ACCEPT".encode(format))
         conn.recv(1024).decode(format)
+        Remove_LiveAccount(conn, username)
         conn.close()
     except:
         print("error")
         return False
     finally:
         return True
+
 
 def check_SQL(user, psw):
     loginInfo = MySQL.getLoginInfo('client.json')
@@ -102,6 +118,7 @@ def check_SQL(user, psw):
 
 
 def check_login_client(conn):
+    USER = NO_ACCOUNT
 
     username = conn.recv(1024).decode(format)
     conn.sendall(username.encode(format))
@@ -113,12 +130,22 @@ def check_login_client(conn):
 
     if (check == 1):
         conn.sendall("SUCCESSFUL".encode(format))
+        id.append(username)
+        address.append(str(conn.getsockname()))
+        account = str(address[address.__len__()-1]) + \
+            "-"+str(id[id.__len__()-1])
+        Live_Account.append(account)
+        USER = username
+        pass
+
     elif (check == 0):
         conn.sendall("WRONG PASSWORD".encode(format))
     else:
         conn.sendall("USERNAME NOT AVAILABLE".encode(format))
 
     conn.recv(1024).decode(format)
+
+    return USER
 
 
 def create_account(conn):
@@ -134,11 +161,48 @@ def create_account(conn):
         conn.sendall("USERNAME AVAILABLE".encode(format))
     else:
         conn.sendall("CREATE ACCOUNT SUCCESSFUL".encode(format))
-        MySQL.add_new_user(username,password,"client.json")
+        MySQL.add_new_user(username, password, "client.json")
 
     conn.recv(1024).decode(format)
     return
 
+####################----------------------------------------------------Class ----------------------------------------------------------------
+class HomePage_Server(Frame):  # test chơi chơi
+    def __init__(self, parent, controller):
+        Frame.__init__(self, parent)
+        self.configure(bg="aliceblue")
+        label_title = Label(self, text="\n ACTIVE ACCOUNT ON SEVER\n",
+                            font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
+
+        self.connect = Frame(self)
+        self.data = Listbox(self.connect, height=15,
+                               width=50,
+                               bg='floral white',
+                               activestyle='dotbox',
+                               font="Helvetica",
+                               fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+
+        button_log = Button(self, text="REFRESH", bg="#20639b",
+                               fg='floral white', command=self.Update_Client)
+        button_back = Button(self, text="LOG OUT", bg="#20639b",
+                                fg='floral white', command=lambda: controller.switchPage(loginServer))
+        button_log.pack(side=BOTTOM, pady=5)
+        button_log.configure(width=10)
+        button_back.pack(side=BOTTOM, pady=5)
+        button_back.configure(width=10)
+
+        self.connect.pack_configure()
+        self.scroll = Scrollbar(self.connect)
+        self.scroll.pack(side=RIGHT, fill=BOTH)
+        self.data.config(yscrollcommand=self.scroll.set)
+
+        self.scroll.config(command=self.data.yview)
+        self.data.pack()
+
+    def Update_Client(self):
+        self.data.delete(0, len(Live_Account))
+        for i in range(len(Live_Account)):
+            self.data.insert(i, Live_Account[i])
 
 class registerServer(Frame):
     def __init__(self, main_frame, windows):
@@ -211,7 +275,6 @@ class registerServer(Frame):
             windows.switchPage(loginServer)
         return
 
-
 class loginServer(Frame):
     def __init__(self, main_frame, windows):
 
@@ -225,8 +288,6 @@ class loginServer(Frame):
         frame_mana = Frame(master=self)
         frame_mana.configure(bg="aliceblue")
         frame_mana.pack()
-
-        
 
         login_label = Label(master=frame_mana, text="LOGIN", bg="aliceblue",
                             width="17", height="2", font='Tahoma 19 bold', fg="darkblue")
@@ -300,7 +361,7 @@ class serverGUI(Tk):
         self.geometry("500x300+300+100")
         # self.resizable(width=False,height=False)
         self.title("SERVER LOGIN")
-        self.iconphoto(False, PhotoImage(file='Image/Server_icon.png'))
+        self.iconphoto(False, PhotoImage(file='Image/Sever_icon.png'))
 
         self.main_frame = Frame(master=self, bg="grey")
         self.main_frame.pack(fill='both', expand=True)
@@ -322,7 +383,10 @@ class serverGUI(Tk):
             self.dictionary_frame[i] = frame
 
     def switchPage(self, pageName):
-        self.dictionary_frame[pageName].tkraise()
+        if (pageName == HomePage_Server):
+            self.geometry("600x650+100+200")
+        elif (pageName == loginServer and pageName == registerServer):
+            self.geometry("500x300+300+300")
 
     def clear_widget(self, frame):
         for widgets in frame.winfo_children():
@@ -334,11 +398,12 @@ def create_connection(s):
         while True:
             conn, addr = s.accept()
             print("client connected")
-            clientThread = threading.Thread(target=client_side, args=(conn, addr))
+            clientThread = threading.Thread(
+                target=client_side, args=(conn, addr))
             clientThread.daemon = True
             clientThread.start()
             print("end client_side")
-            if(clientThread=="Break"): 
+            if(clientThread == "Break"):
                 print("finish client session")
                 break
 
@@ -360,7 +425,8 @@ def create_server(SERVER):
     clientThread.start()
 ##########################################################
 
-clock=threading.Thread(target=MySQL.alarm, args=())
+
+clock = threading.Thread(target=MySQL.alarm, args=())
 clock.daemon = True
 clock.start()
 

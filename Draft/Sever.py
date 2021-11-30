@@ -1,17 +1,17 @@
 import socket
+import json
 import threading
 from tkinter import *
 from tkinter import Button, Frame, Label
 from tkinter import messagebox
 from tkinter.font import BOLD
 from PIL import ImageTk, Image
-import mysql as MySQL
+import MySQL
 from tkinter import filedialog
 # '127.0.0.1'
 # 192.168.1.3
 port = 12345
 format = 'utf8'
-
 
 class HomePage_Server(Frame):  # test chơi chơi
     def __init__(self, main_frame, windows):
@@ -22,28 +22,78 @@ class HomePage_Server(Frame):  # test chơi chơi
         homepage_label.pack()
         frame1 = Frame(master=self, width=100, height=100, bg="red")
         logout_button = Button(master=self, text="Logout", width=12, height=1,
-                               bg="blue", fg="white", command=lambda: windows.switchPage(loginServer))
+                               bg="blue", fg="white", command=lambda: self.logout_server(windows))
         logout_button.pack()
         frame1.pack()
 
+    def logout_server(self,windows):
+        s.close()
+        windows.switchPage(loginServer)
+        return
 
-def client_side(conn, addr):
+def client_side(conn, check_dis):
     while (True):
-        command = conn.recv(1024).decode(format)
-        conn.sendall(command.encode(format))
-        if (command == "LOGIN"):
-            check_login_client(conn)
-        elif(command == "REGISTER"):
-            create_account(conn)
-            return
-    return
+        try:
+            command = conn.recv(1024).decode(format)
+            conn.sendall(command.encode(format))
+        except:
+            pass
+        finally:
+            if (command == "LOGIN"):
+                check_login_client(conn)
+            elif(command == "REGISTER"):
+                create_account(conn)
+                return
+            elif(command == "DISCONNECT"):
+                check=disconnect_client(conn)
+                if (check==True):
+                    check_dis=True
+                    break
+            elif (command == 'DATA'):
+                send_data_to_client(conn)
+                pass            
+    return check
 
+def send_data_to_client(conn):
 
-def check_SQL(username, password):
-    loginInfo = MySQL.getLoginInfo('user_pas')
+    filename = conn.recv(1024).decode(format)
+    conn.sendall(filename.encode(format))
+
+    data = MySQL.take_data_from_json(filename)
+    
+    if (data==False):
+        conn.sendall("Fail".encode(format))
+        conn.recv(1024).decode(format)
+        return
+    else:
+        conn.sendall("Success".encode(format))
+        conn.recv(1024).decode(format)
+        
+    data=data['results']
+    for item in data:
+        conn.sendall(json.dumps(item).encode(format))
+        conn.recv(1024).decode(format)
+        
+    conn.sendall("done".encode(format))
+    conn.recv(1024).decode(format)
+    pass
+
+def disconnect_client(conn):
+    try:
+        conn.sendall("ACCEPT".encode(format))
+        conn.recv(1024).decode(format)
+        conn.close()
+    except:
+        print("error")
+        return False
+    finally:
+        return True
+
+def check_SQL(user, psw):
+    loginInfo = MySQL.getLoginInfo('client.json')
     for i in loginInfo:
-        if (username == i[0]):
-            if (password == i[1]):
+        if (user == i['username']):
+            if (psw == i['password']):
                 return 1
             else:
                 return 0
@@ -78,15 +128,13 @@ def create_account(conn):
     password = conn.recv(1024).decode(format)
     conn.sendall(password.encode(format))
 
-    re_password = conn.recv(1024).decode(format)
-    conn.sendall(password.encode(format))
-
     check = check_SQL(username, password)
 
     if (check == 1 or check == 0):
         conn.sendall("USERNAME AVAILABLE".encode(format))
     else:
         conn.sendall("CREATE ACCOUNT SUCCESSFUL".encode(format))
+        MySQL.add_new_user(username,password,"client.json")
 
     conn.recv(1024).decode(format)
     return
@@ -150,7 +198,7 @@ class registerServer(Frame):
 
         else:
 
-            loginInfo = MySQL.getLoginInfo("user_pas_server")
+            loginInfo = MySQL.getLoginInfo("server.json")
 
             for i in loginInfo:
                 if (self.username_registration.get() == i[0]):
@@ -158,7 +206,7 @@ class registerServer(Frame):
                     return
 
             MySQL.add_new_user(str(self.username_registration.get()), str(
-                self.password_registration.get()), "user_pas_server")
+                self.password_registration.get()), "server.json")
             messagebox.showinfo('SUCCESSFUL', "CREATE ACCOUNT SUCCESSFUL")
             windows.switchPage(loginServer)
         return
@@ -225,11 +273,11 @@ class loginServer(Frame):
                 'Error', "PLEASE ENTER ALL INFORMATION REQUIRE")
             return False
 
-        loginInfo = MySQL.getLoginInfo("user_pas_server")
+        loginInfo = MySQL.getLoginInfo("server.json")
 
         for i in loginInfo:
-            if (user == i[0]):
-                if (psw == i[1]):
+            if (user == i['username']):
+                if (psw == i['password']):
 
                     messagebox.showinfo('Error', "LOGIN SUCCESSFUL")
 
@@ -252,7 +300,7 @@ class serverGUI(Tk):
         self.geometry("500x300+300+100")
         # self.resizable(width=False,height=False)
         self.title("SERVER LOGIN")
-        self.iconphoto(False, PhotoImage(file='Image/Sever_icon.png'))
+        self.iconphoto(False, PhotoImage(file='Image/Server_icon.png'))
 
         self.main_frame = Frame(master=self, bg="grey")
         self.main_frame.pack(fill='both', expand=True)
@@ -286,13 +334,15 @@ def create_connection(s):
         while True:
             conn, addr = s.accept()
             print("client connected")
-            clientThread = threading.Thread(
-                target=client_side, args=(conn, addr))
+            clientThread = threading.Thread(target=client_side, args=(conn, addr))
             clientThread.daemon = True
             clientThread.start()
-            print("end main-loop")
+            print("end client_side")
+            if(clientThread=="Break"): 
+                print("finish client session")
+                break
 
-    except KeyboardInterrupt:
+    except:
         s.close()
 
     finally:
@@ -300,6 +350,7 @@ def create_connection(s):
 
 
 def create_server(SERVER):
+    global s
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((SERVER, port))
     s.listen()
@@ -309,6 +360,9 @@ def create_server(SERVER):
     clientThread.start()
 ##########################################################
 
+clock=threading.Thread(target=MySQL.alarm, args=())
+clock.daemon = True
+clock.start()
 
 root = serverGUI()
 root.mainloop()

@@ -1,0 +1,19 @@
+{   
+    "login": [
+        {
+            "username":"admin",
+            "password":"admin",
+            "status":"0"
+        },
+        {
+            "username":"admin1",
+            "password":"admin1",
+            "status":"0"
+        },
+        {
+            "username":"admin2",
+            "password":"admin2",
+            "status":"0"
+        }
+    ]
+}

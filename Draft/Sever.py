@@ -8,14 +8,19 @@ from tkinter.font import BOLD
 from PIL import ImageTk, Image
 import MySQL
 from tkinter import filedialog
+from datetime import datetime
 # '127.0.0.1'
 # 192.168.1.3
 # 192.168.1.8
+
+HOST = None
+
 port = 12345
 format = 'utf8'
 
 NO_ACCOUNT = "no-account"
 
+notification = []
 Live_Account = []
 id = []
 address = []
@@ -33,17 +38,23 @@ def Check_LiveAccount(username):
 
 def Remove_LiveAccount(conn: socket.socket, username):
     if username != NO_ACCOUNT:
-
+        row = StringVar()
         for row in Live_Account:
-            if row.find(username) != -1:
+            if row.find(str(username)) != -1:
                 Live_Account.remove(row)
-                id.remove(username)
-                address.remove(conn.getsockname())
+                id.remove(str(username))
+                address.remove(str(conn.getsockname()))
 
+def addNotification(conn: socket.socket, username, OPTION):
+    now = datetime.now()
 
-def client_side(conn, check_dis):
+    notification.append(str(now) + " - " +
+                        str(conn.getsockname()) + " - " + str(username) + " - " + str(OPTION))
+
+def client_side(conn: socket.socket, check_dis):
+    username = None
+
     while (True):
-        username = None
 
         try:
             command = conn.recv(1024).decode(format)
@@ -62,6 +73,7 @@ def client_side(conn, check_dis):
                     check_dis = True
                     break
             elif (command == 'DATA'):
+                addNotification(conn, username, "SEARCH")
                 send_data_to_client(conn)
                 pass
     return check
@@ -97,6 +109,7 @@ def disconnect_client(conn, username):
         conn.sendall("ACCEPT".encode(format))
         conn.recv(1024).decode(format)
         Remove_LiveAccount(conn, username)
+        addNotification(conn, username, "DISCONNECT")
         conn.close()
     except:
         print("error")
@@ -135,6 +148,7 @@ def check_login_client(conn):
         account = str(address[address.__len__()-1]) + \
             "-"+str(id[id.__len__()-1])
         Live_Account.append(account)
+        addNotification(conn, username, "LOG IN")
         USER = username
         pass
 
@@ -162,6 +176,7 @@ def create_account(conn):
     else:
         conn.sendall("CREATE ACCOUNT SUCCESSFUL".encode(format))
         MySQL.add_new_user(username, password, "client.json")
+        addNotification(conn, username, "REGISTER")
 
     conn.recv(1024).decode(format)
     return
@@ -171,38 +186,74 @@ class HomePage_Server(Frame):  # test chơi chơi
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
         self.configure(bg="aliceblue")
-        label_title = Label(self, text="\n ACTIVE ACCOUNT ON SEVER\n",
-                            font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
 
-        self.connect = Frame(self)
-        self.data = Listbox(self.connect, height=15,
-                               width=50,
-                               bg='floral white',
-                               activestyle='dotbox',
-                               font="Helvetica",
-                               fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+        label_title = Label(self, text="\nACTIVE ACCOUNT ON SEVER\n",
+                               font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
+        label_ipAndPort = Label(self, text="               HOST: " + str(HOST) + "                                                                                        " +
+                                "PORT: " + str(port), bg='aliceblue', fg='blue', font="Tahoma 10 bold")
+        label_ipAndPort.pack(pady=10)
+
+        self.home = Frame(self, bg="aliceblue")
+
+        self.notification = Frame(self.home)
+        self.connect = Frame(self.home)
+        label_notification = Label(
+            self.home, text="NOTIFICATION", bg="aliceblue", fg='blue', font="Tahoma 11 bold")
+        label_notification.grid(row=0, column=0)
+        label_Account = Label(
+            self.home, text="LIVE ACCOUNT", bg="aliceblue", fg='blue', font="Tahoma 11 bold")
+        label_Account.grid(row=0, column=1)
+
+        self.dataAccount = Listbox(self.connect, height=22,
+                                      width=50,
+                                      bg='floral white',
+                                      activestyle='dotbox',
+                                      font="Helvetica 10",
+                                      fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+
+        self.dataNotification = Listbox(self.notification, height=22,
+                                           width=70,
+                                           bg='floral white',
+                                           activestyle='dotbox',
+                                           font="Helvetica 10",
+                                           fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
 
         button_log = Button(self, text="REFRESH", bg="#20639b",
                                fg='floral white', command=self.Update_Client)
         button_back = Button(self, text="LOG OUT", bg="#20639b",
                                 fg='floral white', command=lambda: controller.switchPage(loginServer))
+
         button_log.pack(side=BOTTOM, pady=5)
         button_log.configure(width=10)
         button_back.pack(side=BOTTOM, pady=5)
         button_back.configure(width=10)
 
-        self.connect.pack_configure()
-        self.scroll = Scrollbar(self.connect)
-        self.scroll.pack(side=RIGHT, fill=BOTH)
-        self.data.config(yscrollcommand=self.scroll.set)
+        self.notification.grid(row=1, column=0)
+        self.connect.grid(row=1, column=1)
+        self.home.pack_configure()
 
-        self.scroll.config(command=self.data.yview)
-        self.data.pack()
+        self.scrollAccount = Scrollbar(self.connect)
+        self.scrollAccount.pack(side=RIGHT, fill=BOTH)
+        self.dataAccount.config(yscrollcommand=self.scrollAccount.set)
+
+        self.scrollAccount.config(command=self.dataAccount.yview)
+        self.dataAccount.pack()
+
+        self.scrollNotification = Scrollbar(self.notification)
+        self.scrollNotification.pack(side=RIGHT, fill=BOTH)
+        self.dataNotification.config(yscrollcommand=self.scrollNotification.set)
+
+        self.scrollNotification.config(command=self.dataNotification.yview)
+        self.dataNotification.pack()
 
     def Update_Client(self):
-        self.data.delete(0, len(Live_Account))
+        self.dataAccount.delete(0, len(Live_Account))
         for i in range(len(Live_Account)):
-            self.data.insert(i, Live_Account[i])
+            self.dataAccount.insert(i, Live_Account[i])
+
+        self.dataNotification.delete(0, len(notification))
+        for i in range(len(notification)):
+            self.dataNotification.insert(i, notification[i])
 
 class registerServer(Frame):
     def __init__(self, main_frame, windows):
@@ -354,7 +405,6 @@ class loginServer(Frame):
         messagebox.showerror('Error', "NOT EXIST USERNAME")
         return False
 
-
 class serverGUI(Tk):
     def __init__(self):
         Tk.__init__(self)
@@ -384,16 +434,18 @@ class serverGUI(Tk):
 
     def switchPage(self, pageName):
         if (pageName == HomePage_Server):
-            self.geometry("600x650+100+200")
+            self.geometry("960x640")
         elif (pageName == loginServer and pageName == registerServer):
             self.geometry("500x300+300+300")
+
+        self.dictionary_frame[pageName].tkraise()
 
     def clear_widget(self, frame):
         for widgets in frame.winfo_children():
             widgets.destroy()
 
 
-def create_connection(s):
+def create_connection(s: socket.socket):
     try:
         while True:
             conn, addr = s.accept()
@@ -415,9 +467,11 @@ def create_connection(s):
 
 
 def create_server(SERVER):
+    
     global s
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((SERVER, port))
+    HOST = SERVER
     s.listen()
     print("Waiting Client")
     clientThread = threading.Thread(target=create_connection, args=(s,))

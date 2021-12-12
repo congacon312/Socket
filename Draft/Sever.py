@@ -1,5 +1,6 @@
 import socket
 import json
+import ipaddress
 import threading
 from tkinter import *
 from tkinter import Button, Frame, Label
@@ -13,9 +14,6 @@ from datetime import datetime
 # 192.168.1.3
 # 192.168.1.8
 
-HOST = None
-
-port = 12345
 format = 'utf8'
 
 NO_ACCOUNT = "no-account"
@@ -24,7 +22,7 @@ notification = []
 Live_Account = []
 id = []
 address = []
-################----------------------------------------------------------------function--------------------------------
+# ----------------------------------------------------------------function--------------------------------
 
 
 def Check_LiveAccount(username):
@@ -45,38 +43,58 @@ def Remove_LiveAccount(conn: socket.socket, username):
                 id.remove(str(username))
                 address.remove(str(conn.getsockname()))
 
+
 def addNotification(conn: socket.socket, username, OPTION):
     now = datetime.now()
 
     notification.append(str(now) + " - " +
                         str(conn.getsockname()) + " - " + str(username) + " - " + str(OPTION))
 
-def client_side(conn: socket.socket, check_dis):
+
+def client_side(conn, check_dis):
     username = None
 
     while (True):
-
         try:
             command = conn.recv(1024).decode(format)
             conn.sendall(command.encode(format))
-        except:
-            pass
-        finally:
             if (command == "LOGIN"):
                 username = check_login_client(conn)
+
             elif(command == "REGISTER"):
                 create_account(conn)
-                return
+
             elif(command == "DISCONNECT"):
+                addNotification(conn, "Client", "DISCONNECT")
                 check = disconnect_client(conn, username)
                 if (check == True):
-                    check_dis = True
+                    print("end threading")
+                    check_dis = 'break'
                     break
+            
             elif (command == 'DATA'):
                 addNotification(conn, username, "SEARCH")
                 send_data_to_client(conn)
-                pass
-    return check
+
+            elif (command == "CONNECT"):
+                addNotification(conn, "Unknown client", "CONNECT")
+            
+            elif (command == 'CLOSE WINDOW'):
+                Remove_LiveAccount(conn, username)
+                addNotification(conn, username, "DISCONNECT")
+                check = disconnect_client(conn, username)
+                if (check == True):
+                    print("end threading")
+                    check_dis = 'break'
+                    break
+
+            elif (command == 'LOGOUT'):
+                Remove_LiveAccount(conn, username)
+                addNotification(conn, username, "LOGOUT")
+
+        except:
+            messagebox.showerror('Error', "Client isn't respond")
+    return check_dis
 
 
 def send_data_to_client(conn):
@@ -108,14 +126,11 @@ def disconnect_client(conn, username):
     try:
         conn.sendall("ACCEPT".encode(format))
         conn.recv(1024).decode(format)
-        Remove_LiveAccount(conn, username)
-        addNotification(conn, username, "DISCONNECT")
         conn.close()
+        return True
     except:
         print("error")
         return False
-    finally:
-        return True
 
 
 def check_SQL(user, psw):
@@ -150,7 +165,6 @@ def check_login_client(conn):
         Live_Account.append(account)
         addNotification(conn, username, "LOG IN")
         USER = username
-        pass
 
     elif (check == 0):
         conn.sendall("WRONG PASSWORD".encode(format))
@@ -175,20 +189,120 @@ def create_account(conn):
         conn.sendall("USERNAME AVAILABLE".encode(format))
     else:
         conn.sendall("CREATE ACCOUNT SUCCESSFUL".encode(format))
-        MySQL.add_new_user(username, password, "client.json")
-        addNotification(conn, username, "REGISTER")
+        MySQL.add_new_user(username, password, "Data/client.json")
 
     conn.recv(1024).decode(format)
     return
 
-####################----------------------------------------------------Class ----------------------------------------------------------------
+# ----------------------------------------------------Class ----------------------------------------------------------------
+
+
+class ConnectPage(Tk):
+    def __init__(self):
+        Tk.__init__(self)
+        self.geometry("400x200+300+300")
+        self.title("SERVER")
+        #self.iconphoto(False, PhotoImage(file='Image/Clients_icon.png'))
+        self.IP = StringVar()
+        self.port = StringVar()
+
+        self.connect_frame = Frame(master=self)
+        self.connect_frame.pack(expand=True)
+
+        self.IP_Label = Label(master=self.connect_frame,
+                              text="IP Server: ", font='Tahoma 12')
+        self.IP_Label.grid(row=0, column=0)
+
+        self.IP_entry = Entry(master=self.connect_frame,
+                              borderwidth=2, textvariable=self.IP)
+        self.IP_entry.grid(row=0, column=1, columnspan=2)
+        self.IP_entry.focus()
+
+        self.port_label = Label(master=self.connect_frame,
+                                text="Port", font='Tahoma 12')
+        self.port_label.grid(row=1, column=0, pady=10)
+
+        self.port_entry = Entry(master=self.connect_frame,
+                                borderwidth=2, textvariable=self.port)
+        self.port_entry.grid(row=1, column=1, columnspan=2)
+
+        self.button_connect = Button(master=self.connect_frame, text="Create",
+                                     width=12, relief='ridge', borderwidth=3, command=self.create_server)
+        self.button_connect.grid(row=2, column=0, padx=10)
+
+        self.button_connect = Button(master=self.connect_frame, text="Exit",
+                                     width=12, relief='ridge', borderwidth=3, command=self.destroy)
+        self.button_connect.grid(row=2, column=1)
+
+    def create_connection(self):
+        try:
+            while True:
+                conn, addr = self.s.accept()
+                print("client connected")
+                check_dis = ""
+                clientThread = threading.Thread(
+                    target=client_side, args=(conn, check_dis))
+                clientThread.daemon = True
+                clientThread.start()
+                print(check_dis)
+                if (check_dis == "break"):
+                    print("finish client session")
+                    conn.close()
+                    break
+        except:
+            print("error: create_connection")
+            pass
+
+    def create_server(self):
+        try:
+            if (self.validate_ip_address() == False):
+                messagebox.showerror(
+                    'Error', "CAN'T CREATE SERVER WITH THIS IP !!! TRY ANOTHER IP.")
+                return
+
+            clock = threading.Thread(
+                target=MySQL.alarm, args=())  # hẹn giờ cập nhập
+            clock.daemon = True
+            clock.start()
+
+            global HOST
+            global port
+            HOST=self.IP.get()
+            port=self.port.get()
+
+            self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.s.bind((self.IP.get(), int(self.port.get())))
+            self.s.listen()
+            print("Waiting Client")
+
+            clientThread = threading.Thread(
+                target=self.create_connection, args=())
+            clientThread.daemon = True
+            clientThread.start()
+
+            self.destroy()
+            gui = serverGUI()
+            gui.mainloop()
+
+        except:
+            print("can't connect to server")
+            return False
+
+    def validate_ip_address(self):
+        try:
+            ipaddress.ip_address(self.IP.get())
+            return True
+        except ValueError:
+            return False
+
+
 class HomePage_Server(Frame):  # test chơi chơi
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
         self.configure(bg="aliceblue")
 
         label_title = Label(self, text="\nACTIVE ACCOUNT ON SEVER\n",
-                               font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
+                            font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
         label_ipAndPort = Label(self, text="               HOST: " + str(HOST) + "                                                                                        " +
                                 "PORT: " + str(port), bg='aliceblue', fg='blue', font="Tahoma 10 bold")
         label_ipAndPort.pack(pady=10)
@@ -205,23 +319,23 @@ class HomePage_Server(Frame):  # test chơi chơi
         label_Account.grid(row=0, column=1)
 
         self.dataAccount = Listbox(self.connect, height=22,
-                                      width=50,
-                                      bg='floral white',
-                                      activestyle='dotbox',
-                                      font="Helvetica 10",
-                                      fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+                                   width=50,
+                                   bg='floral white',
+                                   activestyle='dotbox',
+                                   font="Helvetica 10",
+                                   fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
 
         self.dataNotification = Listbox(self.notification, height=22,
-                                           width=70,
-                                           bg='floral white',
-                                           activestyle='dotbox',
-                                           font="Helvetica 10",
-                                           fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+                                        width=70,
+                                        bg='floral white',
+                                        activestyle='dotbox',
+                                        font="Helvetica 10",
+                                        fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
 
         button_log = Button(self, text="REFRESH", bg="#20639b",
-                               fg='floral white', command=self.Update_Client)
+                            fg='floral white', command=self.Update_Client)
         button_back = Button(self, text="LOG OUT", bg="#20639b",
-                                fg='floral white', command=lambda: controller.switchPage(loginServer))
+                             fg='floral white', command=lambda: controller.switchPage(loginServer))
 
         button_log.pack(side=BOTTOM, pady=5)
         button_log.configure(width=10)
@@ -241,7 +355,8 @@ class HomePage_Server(Frame):  # test chơi chơi
 
         self.scrollNotification = Scrollbar(self.notification)
         self.scrollNotification.pack(side=RIGHT, fill=BOTH)
-        self.dataNotification.config(yscrollcommand=self.scrollNotification.set)
+        self.dataNotification.config(
+            yscrollcommand=self.scrollNotification.set)
 
         self.scrollNotification.config(command=self.dataNotification.yview)
         self.dataNotification.pack()
@@ -254,6 +369,7 @@ class HomePage_Server(Frame):  # test chơi chơi
         self.dataNotification.delete(0, len(notification))
         for i in range(len(notification)):
             self.dataNotification.insert(i, notification[i])
+
 
 class registerServer(Frame):
     def __init__(self, main_frame, windows):
@@ -316,15 +432,16 @@ class registerServer(Frame):
             loginInfo = MySQL.getLoginInfo("server.json")
 
             for i in loginInfo:
-                if (self.username_registration.get() == i[0]):
+                if (self.username_registration.get() == i['username']):
                     messagebox.showerror('Error', "USERNAME AVAILABLE")
                     return
 
             MySQL.add_new_user(str(self.username_registration.get()), str(
-                self.password_registration.get()), "server.json")
+                self.password_registration.get()), "Data/server.json")
             messagebox.showinfo('SUCCESSFUL', "CREATE ACCOUNT SUCCESSFUL")
             windows.switchPage(loginServer)
         return
+
 
 class loginServer(Frame):
     def __init__(self, main_frame, windows):
@@ -333,7 +450,6 @@ class loginServer(Frame):
 
         self.username = StringVar()
         self.password = StringVar()
-        self.IP = StringVar()
         self.configure(bg="aliceblue")
 
         frame_mana = Frame(master=self)
@@ -361,13 +477,6 @@ class loginServer(Frame):
                                textvariable=self.password, width=40, bg='white', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
         password_entry.pack()
 
-        IP_label = Label(master=frame_mana, text="Enter Your IP Computer*",
-                         bg="aliceblue", fg="darkblue", font='Tahoma 9 bold')
-        IP_label.pack()
-        IP_entry = Entry(master=frame_mana,
-                         textvariable=self.IP, width=40, bg='white', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
-        IP_entry.pack()
-
         login_button = Button(master=frame_mana, text="Login", width=12, height=1,
                               fg="black", bg="lightblue", highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1, command=lambda: self.Login_handle(windows))
         login_button.pack(pady=10)
@@ -393,8 +502,6 @@ class loginServer(Frame):
 
                     messagebox.showinfo('Error', "LOGIN SUCCESSFUL")
 
-                    create_server(self.IP.get())
-
                     windows.switchPage(HomePage_Server)
                     return True
 
@@ -405,13 +512,14 @@ class loginServer(Frame):
         messagebox.showerror('Error', "NOT EXIST USERNAME")
         return False
 
+
 class serverGUI(Tk):
     def __init__(self):
         Tk.__init__(self)
         self.geometry("500x300+300+100")
         # self.resizable(width=False,height=False)
         self.title("SERVER LOGIN")
-        self.iconphoto(False, PhotoImage(file='Image/Sever_icon.png'))
+        #self.iconphoto(False, PhotoImage(file='Image/Sever_icon.png'))
 
         self.main_frame = Frame(master=self, bg="grey")
         self.main_frame.pack(fill='both', expand=True)
@@ -434,10 +542,9 @@ class serverGUI(Tk):
 
     def switchPage(self, pageName):
         if (pageName == HomePage_Server):
-            self.geometry("960x640")
+            self.geometry("960x640+10+10")
         elif (pageName == loginServer and pageName == registerServer):
             self.geometry("500x300+300+300")
-
         self.dictionary_frame[pageName].tkraise()
 
     def clear_widget(self, frame):
@@ -445,44 +552,7 @@ class serverGUI(Tk):
             widgets.destroy()
 
 
-def create_connection(s: socket.socket):
-    try:
-        while True:
-            conn, addr = s.accept()
-            print("client connected")
-            clientThread = threading.Thread(
-                target=client_side, args=(conn, addr))
-            clientThread.daemon = True
-            clientThread.start()
-            print("end client_side")
-            if(clientThread == "Break"):
-                print("finish client session")
-                break
-
-    except:
-        s.close()
-
-    finally:
-        s.close()
-
-
-def create_server(SERVER):
-    
-    global s
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((SERVER, port))
-    HOST = SERVER
-    s.listen()
-    print("Waiting Client")
-    clientThread = threading.Thread(target=create_connection, args=(s,))
-    clientThread.daemon = True
-    clientThread.start()
 ##########################################################
 
-
-clock = threading.Thread(target=MySQL.alarm, args=())
-clock.daemon = True
-clock.start()
-
-root = serverGUI()
+root = ConnectPage()
 root.mainloop()

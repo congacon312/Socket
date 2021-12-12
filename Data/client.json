@@ -1,19 +1,20 @@
-{   
+{
     "login": [
         {
-            "username":"hoang",
-            "password":"123",
-            "status":"0"
+            "username": "hoang",
+            "password": "123"
         },
         {
-            "username":"hoang1",
-            "password":"1234",
-            "status":"0"
+            "username": "hoang1",
+            "password": "1234"
         },
         {
-            "username":"hoang2",
-            "password":"12345",
-            "status":"0"
+            "username": "hoang2",
+            "password": "12345"
+        },
+        {
+            "username": "hai",
+            "password": "123"
         }
     ]
 }

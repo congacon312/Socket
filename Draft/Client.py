@@ -1,5 +1,6 @@
 import socket
 import json
+from sys import argv
 import threading
 from tkinter import *
 from tkinter import Button, Frame, Label
@@ -8,11 +9,11 @@ from tkinter import ttk
 from tkcalendar import Calendar, DateEntry
 from datetime import *
 import time
+
 # '192.168.1.3'
 format = 'utf8'
 
 NO_ACCOUNT = "no-account"
-
 
 class ConnectPage(Tk):
     def __init__(self):
@@ -57,6 +58,9 @@ class ConnectPage(Tk):
             s.connect((self.IP.get(), int(self.port.get())))
             print("connected to server")
             self.destroy()
+
+            s.sendall("CONNECT".encode(format))
+            s.recv(1024).decode(format)
 
             login = clientGUI(s)
             login.mainloop()
@@ -116,13 +120,13 @@ class HomePage_Client(Frame):
                              width=15, foreground="grey", date_pattern='dd/mm/yyyy')
         self.cal.grid(row=2, column=0, pady=10, padx=5)
 
+
         self.date_label = Label(
             master=self.HomePage_manager, text="CURRENCY", font='Tahoma 10', bg="white")
         self.date_label.grid(row=3, column=0)
 
         self.option_list = []
-        self.Combo = ttk.Combobox(
-            self.HomePage_manager, values=self.option_list, state="readonly", width="15")
+        self.Combo = ttk.Combobox(self.HomePage_manager, values=self.option_list, state="readonly", width="15")
         self.Combo.set("Choose currency")
         self.Combo.grid(row=4, column=0, pady=10)
 
@@ -135,10 +139,10 @@ class HomePage_Client(Frame):
         self.reset.grid(row=6, column=0)
 
         logout_button = Button(master=self.HomePage_manager, text="Logout",
-                               width=10, command=lambda: windows.switchPage(loginClient))
+                               width=10, command=lambda:  self.logout_button(s,windows))
         logout_button.grid(row=7, column=0, pady=100)
 
-    def show_data(self, s, windows):
+    def show_data(self, s,windows):
         try:
 
             s.sendall("DATA".encode(format))
@@ -263,9 +267,18 @@ class HomePage_Client(Frame):
         except:
             messagebox.showerror('Error', "Server isn't respond")
 
-    def reset_button(self, s, windows):
+    def reset_button(self,s,windows):
         self.Combo.set("Choose currency")
         self.show_data(s, windows)
+
+    def logout_button(self,s,windows):
+        try:
+            s.sendall("LOGOUT".encode(format))
+            s.recv(1024).decode(format)
+            windows.switchPage(loginClient)
+        except:
+            messagebox.showerror('Error', "Server isn't respond")
+
 
 
 class registerClient(Frame):
@@ -402,10 +415,7 @@ class loginClient(Frame):
             try:
                 s.sendall("LOGIN".encode(format))
                 s.recv(1024).decode(format)
-            except:
-                messagebox.showerror('Error', "Server isn't respond")
-                return
-            finally:
+                
                 s.sendall(user.encode(format))
                 s.recv(1024).decode(format)
 
@@ -421,23 +431,26 @@ class loginClient(Frame):
                     windows.switchPage(HomePage_Client)
                 else:
                     messagebox.showerror('Error', check_log)
+            except:
+                messagebox.showerror('Error', "Server isn't respond")
+            return
 
     def Disconnect(self, windows, s):
         try:
             s.sendall("DISCONNECT".encode(format))
             s.recv(1024).decode(format)
-        except:
-            messagebox.showerror('Error', "Server isn't respond")
-        finally:
+            
             check = s.recv(1024).decode(format)
             s.sendall(check.encode(format))
 
             if (check == "ACCEPT"):
                 s.close()
+                print("disconnected server")
                 windows.destroy()
                 client = ConnectPage()
                 client.mainloop()
-
+        except:
+            messagebox.showerror('Error', "Server isn't respond")
 
 class clientGUI(Tk):
     def __init__(self, s):
@@ -446,7 +459,8 @@ class clientGUI(Tk):
         self.title("CLIENT")
         self.resizable(width=False, height=False)
         #self.iconphoto(False, PhotoImage(file='Image/Clients_icon.png'))
-        self.s = s
+        self.protocol("WM_DELETE_WINDOW", lambda: self.close_window(s))
+
         self.main_frame = Frame(master=self, bg="grey")
         self.main_frame.pack(fill='both', expand=True)
 
@@ -456,14 +470,14 @@ class clientGUI(Tk):
         self.dictionary_frame = {}  # dictionary để lưu trữ những frame của server
         self.list_frame = (loginClient, registerClient, HomePage_Client)
 
-        self.add_frame()
+        self.add_frame(s)
 
         self.switchPage(loginClient)  # switch between frame
 
-    def add_frame(self):
+    def add_frame(self,s):
 
         for i in self.list_frame:
-            frame = i(self.main_frame, self, self.s)
+            frame = i(self.main_frame, self, s)
             frame.grid(row=0, column=0, sticky="news")
             self.dictionary_frame[i] = frame
 
@@ -479,6 +493,24 @@ class clientGUI(Tk):
         for widgets in frame.winfo_children():
             widgets.destroy()
 
+    def close_window(self,s):
+        try:
+            s.sendall("CLOSE WINDOW".encode(format))
+            s.recv(1024).decode(format)
+
+            check=s.recv(1024).decode(format)
+            s.sendall(check.encode(format))
+
+            if (check=="ACCEPT"):
+                print("close window")
+                self.destroy()
+                s.close()
+
+        except:
+            messagebox.showerror('Error', "Server isn't respond")
+            self.destroy()
+            
+        
 
 ####################################################
 client = ConnectPage()

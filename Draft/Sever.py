@@ -25,6 +25,10 @@ address = []
 # ----------------------------------------------------------------function--------------------------------
 
 
+def autoRefresh(page):
+    page.Update_Client()
+
+
 def Check_LiveAccount(username):
     for row in Live_Account:
         parse = row.find("-")
@@ -43,12 +47,16 @@ def Remove_LiveAccount(conn: socket.socket, username):
                 id.remove(str(username))
                 address.remove(str(conn.getsockname()))
 
+    autoRefresh(HomePage_Server)
+
 
 def addNotification(conn: socket.socket, username, OPTION):
     now = datetime.now()
 
     notification.append(str(now) + " - " +
                         str(conn.getsockname()) + " - " + str(username) + " - " + str(OPTION))
+
+    autoRefresh(HomePage_Server)
 
 
 def client_side(conn, check_dis):
@@ -71,14 +79,14 @@ def client_side(conn, check_dis):
                     print("end threading")
                     check_dis = 'break'
                     break
-            
+
             elif (command == 'DATA'):
                 addNotification(conn, username, "SEARCH")
                 send_data_to_client(conn)
 
             elif (command == "CONNECT"):
                 addNotification(conn, "Unknown client", "CONNECT")
-            
+
             elif (command == 'CLOSE WINDOW'):
                 Remove_LiveAccount(conn, username)
                 addNotification(conn, username, "DISCONNECT")
@@ -164,6 +172,7 @@ def check_login_client(conn):
             "-"+str(id[id.__len__()-1])
         Live_Account.append(account)
         addNotification(conn, username, "LOG IN")
+        autoRefresh(HomePage_Server)
         USER = username
 
     elif (check == 0):
@@ -267,8 +276,8 @@ class ConnectPage(Tk):
 
             global HOST
             global port
-            HOST=self.IP.get()
-            port=self.port.get()
+            HOST = self.IP.get()
+            port = self.port.get()
 
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.bind((self.IP.get(), int(self.port.get())))

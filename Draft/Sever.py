@@ -25,10 +25,6 @@ address = []
 # ----------------------------------------------------------------function--------------------------------
 
 
-def autoRefresh(page):
-    page.Update_Client()
-
-
 def Check_LiveAccount(username):
     for row in Live_Account:
         parse = row.find("-")
@@ -47,8 +43,6 @@ def Remove_LiveAccount(conn: socket.socket, username):
                 id.remove(str(username))
                 address.remove(str(conn.getsockname()))
 
-    autoRefresh(HomePage_Server)
-
 
 def addNotification(conn: socket.socket, username, OPTION):
     now = datetime.now()
@@ -56,7 +50,6 @@ def addNotification(conn: socket.socket, username, OPTION):
     notification.append(str(now) + " - " +
                         str(conn.getsockname()) + " - " + str(username) + " - " + str(OPTION))
 
-    autoRefresh(HomePage_Server)
 
 
 def client_side(conn, check_dis):
@@ -172,7 +165,6 @@ def check_login_client(conn):
             "-"+str(id[id.__len__()-1])
         Live_Account.append(account)
         addNotification(conn, username, "LOG IN")
-        autoRefresh(HomePage_Server)
         USER = username
 
     elif (check == 0):

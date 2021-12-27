@@ -8,6 +8,7 @@ from tkinter import messagebox
 from tkinter import ttk
 from tkcalendar import Calendar, DateEntry
 from datetime import *
+from PIL import Image, ImageTk
 import time
 
 # '192.168.1.3'
@@ -91,56 +92,55 @@ class HomePage_Client(Frame):
             self.table_manager, scrollregion=(0, 0, 500, 500))
         self.my_canvas.pack(side=LEFT, fill=BOTH, expand=1)
 
-        my_scrollbar = ttk.Scrollbar(
-            master=self.table_manager, orient=VERTICAL, command=self.my_canvas.yview)
+        my_scrollbar = ttk.Scrollbar(master=self.table_manager, orient=VERTICAL, command=self.my_canvas.yview)
         my_scrollbar.pack(side=RIGHT, fill=Y)
 
         self.my_canvas.configure(yscrollcommand=my_scrollbar.set)
-        self.my_canvas.bind('<Configure>', lambda e: self.my_canvas.configure(
-            scrollregion=self.my_canvas.bbox("all")))
+        self.my_canvas.bind('<Configure>', lambda e: self.my_canvas.configure(scrollregion=self.my_canvas.bbox("all")))
 
         self.second_frame = Frame(self.my_canvas)
 
-        self.my_canvas.create_window(
-            (0, 0), window=self.second_frame, anchor="nw")
+        self.my_canvas.create_window((0, 0), window=self.second_frame, anchor="nw")
         self.my_canvas.configure(scrollregion=self.my_canvas.bbox("all"))
         #####
         self.width = 20
 
+        self.img = ImageTk.PhotoImage(Image.open("Image/default-user-image.png"))
+        self.panel = Label(self.HomePage_manager    , image = self.img)
+        self.panel['image']=self.img
+        self.panel.grid(row=0,column=0)
+
         global temp_label
-        temp_label = Label(master=self.HomePage_manager,
-                           font='Tahoma 12', bg="white")
-        temp_label.grid(row=0, column=0, pady=10)
+        temp_label = Label(master=self.HomePage_manager, font='Tahoma 12', bg="white")
+        temp_label.grid(row=1, column=0, pady=10)
 
-        self.date_label = Label(
-            master=self.HomePage_manager, text="DATE", font='Tahoma 10', bg="white")
-        self.date_label.grid(row=1, column=0)
+        self.date_label = Label(master=self.HomePage_manager, text="DATE", font='Tahoma 10', bg="white")
+        self.date_label.grid(row=2, column=0)
 
-        self.cal = DateEntry(master=self.HomePage_manager,
-                             width=15, foreground="grey", date_pattern='dd/mm/yyyy')
-        self.cal.grid(row=2, column=0, pady=10, padx=5)
+        self.cal = DateEntry(master=self.HomePage_manager,width=15, foreground="grey", date_pattern='dd/mm/yyyy')
+        self.cal.grid(row=3, column=0, pady=10, padx=5)
 
 
         self.date_label = Label(
             master=self.HomePage_manager, text="CURRENCY", font='Tahoma 10', bg="white")
-        self.date_label.grid(row=3, column=0)
+        self.date_label.grid(row=4, column=0)
 
         self.option_list = []
         self.Combo = ttk.Combobox(self.HomePage_manager, values=self.option_list, state="readonly", width="15")
         self.Combo.set("Choose currency")
-        self.Combo.grid(row=4, column=0, pady=10)
+        self.Combo.grid(row=5, column=0, pady=10)
 
         search_button = Button(master=self.HomePage_manager, text="Search",
                                width=10, command=lambda: self.show_data(s, windows))
-        search_button.grid(row=5, column=0, pady=10)
+        search_button.grid(row=6, column=0, pady=10)
 
         self.reset = Button(master=self.HomePage_manager, text="Reset", width=10,
                             command=lambda: self.reset_button(s, windows), state=DISABLED)
-        self.reset.grid(row=6, column=0)
+        self.reset.grid(row=7, column=0)
 
         logout_button = Button(master=self.HomePage_manager, text="Logout",
                                width=10, command=lambda:  self.logout_button(s,windows))
-        logout_button.grid(row=7, column=0, pady=100)
+        logout_button.grid(row=8, column=0, pady=20)
 
     def show_data(self, s,windows):
         try:
@@ -426,8 +426,8 @@ class loginClient(Frame):
                 s.sendall(check_log.encode(format))
 
                 if (check_log == "SUCCESSFUL"):
-                    messagebox.showinfo('Error', check_log)
-                    temp_label['text'] = "USERNAME: "+user
+                    messagebox.showinfo('None', check_log)
+                    temp_label['text'] = "Username: "+user
                     windows.switchPage(HomePage_Client)
                 else:
                     messagebox.showerror('Error', check_log)
@@ -503,12 +503,13 @@ class clientGUI(Tk):
 
             if (check=="ACCEPT"):
                 print("close window")
-                self.destroy()
-                s.close()
-
         except:
-            messagebox.showerror('Error', "Server isn't respond")
+            #messagebox.showerror('Error', "Server isn't respond")
+            print("Server isn't respond")
+        finally:
             self.destroy()
+            s.close()
+            pass
             
         
 

@@ -6,8 +6,8 @@ from tkinter import *
 from tkinter import Button, Frame, Label
 from tkinter import messagebox
 from tkinter.font import BOLD
-from PIL import ImageTk, Image
-import MySQL
+from PIL import Image, ImageTk
+import Control_Json
 from tkinter import filedialog
 from datetime import datetime
 # '127.0.0.1'
@@ -103,7 +103,7 @@ def send_data_to_client(conn):
     filename = conn.recv(1024).decode(format)
     conn.sendall(filename.encode(format))
 
-    data = MySQL.take_data_from_json(filename)
+    data = Control_Json.take_data_from_json(filename)
 
     if (data == False):
         conn.sendall("Fail".encode(format))
@@ -135,7 +135,7 @@ def disconnect_client(conn, username):
 
 
 def check_SQL(user, psw):
-    loginInfo = MySQL.getLoginInfo('client.json')
+    loginInfo = Control_Json.getLoginInfo('client.json')
     for i in loginInfo:
         if (user == i['username']):
             if (psw == i['password']):
@@ -190,7 +190,7 @@ def create_account(conn):
         conn.sendall("USERNAME AVAILABLE".encode(format))
     else:
         conn.sendall("CREATE ACCOUNT SUCCESSFUL".encode(format))
-        MySQL.add_new_user(username, password, "Data/client.json")
+        Control_Json.add_new_user(username, password, "Data/client.json")
 
     conn.recv(1024).decode(format)
     return
@@ -203,7 +203,7 @@ class ConnectPage(Tk):
         Tk.__init__(self)
         self.geometry("400x200+300+300")
         self.title("SERVER")
-        #self.iconphoto(False, PhotoImage(file='Image/Clients_icon.png'))
+        self.iconphoto(False, PhotoImage(file='Image/Clients_icon.png'))
         self.IP = StringVar()
         self.port = StringVar()
 
@@ -262,7 +262,7 @@ class ConnectPage(Tk):
                 return
 
             clock = threading.Thread(
-                target=MySQL.alarm, args=())  # hẹn giờ cập nhập
+                target=Control_Json.alarm, args=())  # hẹn giờ cập nhập
             clock.daemon = True
             clock.start()
 
@@ -300,52 +300,76 @@ class ConnectPage(Tk):
 class HomePage_Server(Frame):  # test chơi chơi
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
-        self.configure(bg="aliceblue")
+        self.configure(bg="white")
 
-        label_title = Label(self, text="\nACTIVE ACCOUNT ON SEVER\n",
-                            font="Tahoma 22 bold", fg='#20639b', bg="aliceblue").pack()
-        label_ipAndPort = Label(self, text="               HOST: " + str(HOST) + "                                                                                        " +
-                                "PORT: " + str(port), bg='aliceblue', fg='blue', font="Tahoma 10 bold")
-        label_ipAndPort.pack(pady=10)
+        label_title = Label(self, text="MANAGER ACTIVITIES ON SERVER",font='Tahoma 19 bold', bg="white", relief='groove', borderwidth=5)
+        label_title.pack(fill=BOTH)
 
-        self.home = Frame(self, bg="aliceblue")
+
+        self.info_Frame=Frame(self,bg="white", relief='groove', borderwidth=5)
+        self.info_Frame.pack(side=LEFT,expand=True,fill=BOTH)
+
+        self.img = ImageTk.PhotoImage(Image.open("Image/default-user-image.png"))
+        self.panel = Label(self.info_Frame, image = self.img)
+        self.panel['image']=self.img
+        self.panel.grid(row=0,column=0,pady=5)
+
+        global label_username
+        label_username=Label(self.info_Frame, bg='white', font="Tahoma 10 bold")
+        label_username.grid(row=1,column=0)
+
+        label_ip = Label(self.info_Frame, text="HOST: " + str(HOST), bg='white', font="Tahoma 10 bold")
+        label_ip.grid(row=2,column=0,pady=10)
+
+        label_port= Label(self.info_Frame,text="PORT: " + str(port), bg='white', font="Tahoma 10 bold")
+        label_port.grid(row=3,column=0)
+
+        refresh_button = Button(self.info_Frame, text="REFRESH",
+                              command=self.Update_Client)
+
+        clear_button = Button(self.info_Frame, text="CLEAR",
+                              command=self.clear_table)
+
+        logout_button = Button(self.info_Frame, text="LOG OUT",
+                             command=lambda: controller.switchPage(loginServer))
+
+        refresh_button.grid(row=4,column=0,pady=10)
+        refresh_button.configure(width=10)
+
+        clear_button.grid(row=5,column=0)
+        clear_button.configure(width=10)
+        
+        logout_button.grid(row=6,column=0,pady=220)
+        logout_button.configure(width=10)
+
+        self.home = Frame(self, bg="white",relief='groove', borderwidth=5)
 
         self.notification = Frame(self.home)
         self.connect = Frame(self.home)
-        label_notification = Label(
-            self.home, text="NOTIFICATION", bg="aliceblue", fg='blue', font="Tahoma 11 bold")
+        label_notification = Label(self.home, text="ACTIVITIES", bg="white", font="Tahoma 11 bold")
         label_notification.grid(row=0, column=0)
-        label_Account = Label(
-            self.home, text="LIVE ACCOUNT", bg="aliceblue", fg='blue', font="Tahoma 11 bold")
+
+        label_Account = Label(self.home, text="LIVE ACCOUNT", bg="white", font="Tahoma 11 bold")
         label_Account.grid(row=0, column=1)
 
-        self.dataAccount = Listbox(self.connect, height=22,
-                                   width=50,
+        self.dataAccount = Listbox(self.connect, height=35,
+                                   width=35,
                                    bg='floral white',
                                    activestyle='dotbox',
                                    font="Helvetica 10",
-                                   fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+                                   highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
 
-        self.dataNotification = Listbox(self.notification, height=22,
-                                        width=70,
+        self.dataNotification = Listbox(self.notification, height=35,
+                                        width=75,
                                         bg='floral white',
                                         activestyle='dotbox',
                                         font="Helvetica 10",
-                                        fg='#20639b', highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
+                                        highlightbackground="darkgray", highlightcolor="darkgray", highlightthickness=1)
 
-        button_log = Button(self, text="REFRESH", bg="#20639b",
-                            fg='floral white', command=self.Update_Client)
-        button_back = Button(self, text="LOG OUT", bg="#20639b",
-                             fg='floral white', command=lambda: controller.switchPage(loginServer))
-
-        button_log.pack(side=BOTTOM, pady=5)
-        button_log.configure(width=10)
-        button_back.pack(side=BOTTOM, pady=5)
-        button_back.configure(width=10)
-
+        
         self.notification.grid(row=1, column=0)
         self.connect.grid(row=1, column=1)
-        self.home.pack_configure()
+        self.home.pack_configure(side=LEFT,fill=BOTH,expand=True)
 
         self.scrollAccount = Scrollbar(self.connect)
         self.scrollAccount.pack(side=RIGHT, fill=BOTH)
@@ -370,6 +394,9 @@ class HomePage_Server(Frame):  # test chơi chơi
         self.dataNotification.delete(0, len(notification))
         for i in range(len(notification)):
             self.dataNotification.insert(i, notification[i])
+
+    def clear_table(self):
+        self.dataNotification.delete(0, len(notification))
 
 
 class registerServer(Frame):
@@ -430,14 +457,14 @@ class registerServer(Frame):
 
         else:
 
-            loginInfo = MySQL.getLoginInfo("server.json")
+            loginInfo = Control_Json.getLoginInfo("server.json")
 
             for i in loginInfo:
                 if (self.username_registration.get() == i['username']):
                     messagebox.showerror('Error', "USERNAME AVAILABLE")
                     return
 
-            MySQL.add_new_user(str(self.username_registration.get()), str(
+            Control_Json.add_new_user(str(self.username_registration.get()), str(
                 self.password_registration.get()), "Data/server.json")
             messagebox.showinfo('SUCCESSFUL', "CREATE ACCOUNT SUCCESSFUL")
             windows.switchPage(loginServer)
@@ -495,14 +522,14 @@ class loginServer(Frame):
                 'Error', "PLEASE ENTER ALL INFORMATION REQUIRE")
             return False
 
-        loginInfo = MySQL.getLoginInfo("server.json")
+        loginInfo = Control_Json.getLoginInfo("server.json")
 
         for i in loginInfo:
             if (user == i['username']):
                 if (psw == i['password']):
 
-                    messagebox.showinfo('Error', "LOGIN SUCCESSFUL")
-
+                    messagebox.showinfo('None', "LOGIN SUCCESSFUL")
+                    label_username['text'] = "Username: "+user
                     windows.switchPage(HomePage_Server)
                     return True
 
@@ -518,9 +545,9 @@ class serverGUI(Tk):
     def __init__(self):
         Tk.__init__(self)
         self.geometry("500x300+300+100")
-        # self.resizable(width=False,height=False)
+        self.resizable(width=False,height=False)
         self.title("SERVER LOGIN")
-        #self.iconphoto(False, PhotoImage(file='Image/Sever_icon.png'))
+        self.iconphoto(False, PhotoImage(file='Image/Server_icon.png'))
 
         self.main_frame = Frame(master=self, bg="grey")
         self.main_frame.pack(fill='both', expand=True)
@@ -543,7 +570,7 @@ class serverGUI(Tk):
 
     def switchPage(self, pageName):
         if (pageName == HomePage_Server):
-            self.geometry("960x640+10+10")
+            self.geometry("960x600+10+10")
         elif (pageName == loginServer and pageName == registerServer):
             self.geometry("500x300+300+300")
         self.dictionary_frame[pageName].tkraise()
